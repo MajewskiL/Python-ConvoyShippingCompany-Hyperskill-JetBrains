@@ -1,11 +1,11 @@
 from hstest.stage_test import *
 from hstest.test_case import TestCase
 from os import path
+import os
 import shutil
 import re
 import sqlite3
 import json
-import os
 
 
 class EasyRiderStage1(StageTest):
@@ -25,7 +25,7 @@ class EasyRiderStage1(StageTest):
             for line in file:
                 line = line.strip().split(",")
                 convoy.execute(f"INSERT INTO convoy({db_convoy[0]},{db_convoy[1]},{db_convoy[2]},{db_convoy[3]}) "
-                               f"VALUES({line[0]},{line[1]},{line[2]},{line[3]})")
+                              f"VALUES({line[0]},{line[1]},{line[2]},{line[3]})")
             conn.commit()
             conn.close()
 
@@ -81,7 +81,7 @@ class EasyRiderStage1(StageTest):
     def check_output(quantity, nr, text, file_name):
         prefix = f"{quantity} {nr}{' was' if quantity == 1 else 's were'}"
         if not text.startswith(prefix):
-            return f"Output don't starts with sentence '{prefix}' in output '{text}'"
+            return f"Output don't starts with sentence '{prefix}'"
         if file_name not in text:
             return f"There is no {file_name} name in output '{text}'."
         return False
@@ -141,7 +141,7 @@ class EasyRiderStage1(StageTest):
             return f"There is no PRIMARY KEY parameter on column 'vehicle_id' in {file_name}."
 
         #  checking if columns have an attribute NOT NULL
-        not_null = (('1000', 'Null', '1', '1'), ('1001', '1', 'Null', '1'), ('1002', '1', '1', 'Null'))
+        not_null = (('1000', 'Null', 'Convoy Shipping Company', 'Convoy Shipping Company'), ('1001', 'Convoy Shipping Company', 'Null', 'Convoy Shipping Company'), ('1002', 'Convoy Shipping Company', 'Convoy Shipping Company', 'Null'))
         for values in not_null:
             try:
                 convoy.execute(f"INSERT INTO convoy(vehicle_id,engine_capacity,fuel_consumption,maximum_load) "
@@ -173,45 +173,6 @@ class EasyRiderStage1(StageTest):
             return f"There is no 'convoy' key in {file_name}."
         except TypeError:
             return f"There is different data type in JSON file than dictionary."
-        return False
-
-    @staticmethod
-    def checking_xml(file_name, lines):
-        tags = {'vehicle_id': lines, 'engine_capacity': lines, 'fuel_consumption': lines, 'maximum_load': lines}
-        tags_no_data = {'convoy': 1, 'vehicle': lines}
-        with open(file_name, "r") as xml_file:
-            from_xml = xml_file.readlines()
-        from_xml = "".join(x.strip("\n") for x in from_xml)
-
-        #  checking number of tags with digits between
-        for tag in tags:
-            f_tag, l_tag = rf"<{tag}>", rf"</{tag}>"
-            n_tags = len(re.findall(rf"({f_tag})[\d]+({l_tag})", from_xml))
-            if n_tags != tags[tag]:
-                return rf"There is wrong number of {f_tag} tags in {file_name}. Expected {tags[tag]}," + \
-                       f" found {n_tags} or there is something more then digits between those tags."
-
-        #  checking high-level tag, and tags without digits between
-        for tag in tags_no_data:
-            for one_tag in (rf"<{tag}>", rf"</{tag}>"):
-                len_t = len(re.findall(rf"({one_tag})", from_xml))
-                if len_t != tags_no_data[tag]:
-                    return rf"Wrong number of {one_tag} tags in {file_name}. Expected {tags_no_data[tag]}, found {len_t}."
-
-        #  checking structure of file
-        template = r"^[\s]*(<convoy>)"
-        for x in range(lines):
-            template += r"[\s]*(<vehicle>)"
-            template += r"[\s]*(<vehicle_id>)[\d]+(</vehicle_id>)"
-            template += r"[\s]*(<engine_capacity>)[\d]+(</engine_capacity>)"
-            template += r"[\s]*(<fuel_consumption>)[\d]+(</fuel_consumption>)"
-            template += r"[\s]*(<maximum_load>)[\d]+(</maximum_load>)"
-            template += r"[\s]*(</vehicle>)"
-        template += r"[\s]*(</convoy>)[\s]*$"
-        if not re.match(template, from_xml):
-            return f"There is wrong structure of xml file. Look at the example in the stage description."
-
-        return False
 
     def check(self, reply: str, result) -> CheckResult:
         if "input" not in reply.lower():
@@ -220,7 +181,6 @@ class EasyRiderStage1(StageTest):
         reply.pop(0)
         if len(reply) == 0:
             return CheckResult.wrong(f"There is not enough lines in the output")
-
         file_name = result[0].split(".")
 
         #  => xlsx
@@ -291,22 +251,6 @@ class EasyRiderStage1(StageTest):
             return CheckResult.wrong(test)
 
         test = self.check_output(result[1], result[7], reply[0], f'{file_name[0]}.json')
-        if test:
-            return CheckResult.wrong(test)
-
-        reply.pop(0)
-        if len(reply) == 0:
-            return CheckResult.wrong(f"There is not enough lines in the output")
-
-        test = self.file_exist(f'{file_name[0]}.xml')
-        if test:
-            return CheckResult.wrong(test)
-
-        test = self.checking_xml(f'{file_name[0]}.xml', result[1])
-        if test:
-            return CheckResult.wrong(test)
-
-        test = self.check_output(result[1], result[7], reply[0], f'{file_name[0]}.xml')
         if test:
             return CheckResult.wrong(test)
 

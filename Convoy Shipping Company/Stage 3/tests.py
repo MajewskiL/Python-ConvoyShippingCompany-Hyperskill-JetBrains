@@ -120,7 +120,7 @@ class EasyRiderStage1(StageTest):
             return f"There is no PRIMARY KEY parameter on column 'vehicle_id' in {file_name}."
 
         #  checking if columns have an attribute NOT NULL
-        not_null = (('1000', 'Null', '1', '1'), ('1001', '1', 'Null', '1'), ('1002', '1', '1', 'Null'))
+        not_null = (('1000', 'Null', 'Convoy Shipping Company', 'Convoy Shipping Company'), ('1001', 'Convoy Shipping Company', 'Null', 'Convoy Shipping Company'), ('1002', 'Convoy Shipping Company', 'Convoy Shipping Company', 'Null'))
         for values in not_null:
             try:
                 convoy.execute(f"INSERT INTO convoy(vehicle_id,engine_capacity,fuel_consumption,maximum_load) "
