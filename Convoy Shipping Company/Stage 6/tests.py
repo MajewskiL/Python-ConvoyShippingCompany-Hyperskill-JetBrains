@@ -45,6 +45,7 @@ class EasyRiderStage1(StageTest):
                 os.remove(name)
 
     def generate(self) -> List[TestCase]:
+        self.checking_files()
         self.remove_s3db_files()
         self.s3db_generate("data_big_chk[CHECKED].csv")
         return [
@@ -57,6 +58,12 @@ class EasyRiderStage1(StageTest):
                 TestCase(stdin=[self.prepare_file], attach=("data_big_sql.s3db", 10, None, None, "cell", 5961, "record", "vehicle", 6811, 7, 3)),
                 TestCase(stdin=[self.prepare_file], attach=("data_final_xlsx.xlsx", 19, "line", 3, "cell", 8121, "record", "vehicle", 8194, 12, 7)),
         ]
+
+    def checking_files(self):
+        for file in self.files_to_check:
+            file = os.path.join("test", file)
+            if all([not file.endswith(".s3db"), not path.exists(file)]):
+                raise WrongAnswer(f"There is no {file} file in test repository. Please ???")
 
     def after_all_tests(self):
         for file in set(self.files_to_delete):
@@ -150,7 +157,7 @@ class EasyRiderStage1(StageTest):
             return f"There is no PRIMARY KEY parameter on column 'vehicle_id' in {file_name}."
 
         #  checking if columns have an attribute NOT NULL
-        not_null = (('1000', 'Null', 'Convoy Shipping Company', 'Convoy Shipping Company', 'Convoy Shipping Company'), ('1001', 'Convoy Shipping Company', 'Null', 'Convoy Shipping Company', 'Convoy Shipping Company'), ('1002', 'Convoy Shipping Company', 'Convoy Shipping Company', 'Null', 'Convoy Shipping Company'), ('1003', 'Convoy Shipping Company', 'Convoy Shipping Company', 'Convoy Shipping Company', 'Null'))
+        not_null = (('1000', 'Null', 'Null', 'Null', 'Null'), ('1001', 'Null', 'Null', 'Null', 'Null'), ('1002', 'Null', 'Null', 'Null', 'Null'), ('1003', 'Null', 'Null', 'Null', 'Null'))
         for values in not_null:
             try:
                 convoy.execute(f"INSERT INTO convoy(vehicle_id,engine_capacity,fuel_consumption,maximum_load, score) "
