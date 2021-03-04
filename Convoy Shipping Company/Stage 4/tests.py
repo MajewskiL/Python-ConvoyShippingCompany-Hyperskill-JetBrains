@@ -54,14 +54,14 @@ class EasyRiderStage1(StageTest):
         for file in self.files_to_check:
             file = os.path.join("test", file)
             if all([not file.endswith(".s3db"), not path.exists(file)]):
-                raise WrongAnswer(f"There is no {file} file in test repository. Please ???")
+                raise WrongAnswer(f"There is no {file} file in test repository. Please restore the file or restart the lesson.")
 
     def after_all_tests(self):
         for file in set(self.files_to_delete):
             try:
                 os.remove(file)
             except PermissionError:
-                pass
+                raise WrongAnswer(f"Can't delete the database file: {file}. Looks like database connection wasn't closed.")
 
     def prepare_file(self, output):
         file_name = self.files_to_check.pop(0)
