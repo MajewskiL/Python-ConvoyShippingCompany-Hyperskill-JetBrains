@@ -11,18 +11,18 @@ class EasyRiderStage1(StageTest):
     files_to_check = ["data_one.xlsx", "data.xlsx", "data_big.xlsx"]
 
     def generate(self) -> List[TestCase]:
-        self.checking_files()
+#        self.checking_files()
         return [
                 TestCase(stdin=[self.prepare_file], attach=("data_one.xlsx", 1, "line")),
                 TestCase(stdin=[self.prepare_file], attach=("data.xlsx", 4, "line")),
                 TestCase(stdin=[self.prepare_file], attach=("data_big.xlsx", 10, "line")),
         ]
 
-    def checking_files(self):
-        for file in self.files_to_check:
-            file = os.path.join("test", file)
-            if all([not file.endswith(".s3db"), not path.exists(file)]):
-                raise WrongAnswer(f"There is no {file} file in test repository. Please restore the file or restart the lesson.")
+#    def checking_files(self):
+#        for file in self.files_to_check:
+#            file = os.path.join("test", file)
+#            if all([not file.endswith(".s3db"), not path.exists(file)]):
+#                raise WrongAnswer(f"There is no {file} file in test repository. Please restore the file or restart the lesson.")
 
     def after_all_tests(self):
         for file in set(self.files_to_delete):
