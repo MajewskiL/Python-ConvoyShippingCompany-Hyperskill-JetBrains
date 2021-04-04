@@ -41,8 +41,9 @@ class EasyRiderStage1(StageTest):
 
     def remove_s3db_files(self):
         for name in [names.split(".")[0].strip("[CHECKED]") + ".s3db" for names in self.files_to_check]:
-            if path.exists(name):
-                os.remove(name)
+            name_del = os.path.join("test", name)
+            if path.exists(name_del):
+                os.remove(name_del)
 
     def generate(self) -> List[TestCase]:
 #        self.checking_files()
