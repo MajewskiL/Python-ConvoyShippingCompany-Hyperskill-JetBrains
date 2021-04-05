@@ -167,7 +167,10 @@ class EasyRiderStage1(StageTest):
         fields = ['vehicle_id', 'engine_capacity', 'fuel_consumption', 'maximum_load']
         count = 0
         with open(file_name, "r") as json_file:
-            from_json = json.load(json_file)
+            try:
+                from_json = json.load(json_file)
+            except json.decoder.JSONDecodeError:
+                return f"There is different data type in JSON file than JSON."
         try:
             for item in from_json["convoy"]:
                 for field in fields:
