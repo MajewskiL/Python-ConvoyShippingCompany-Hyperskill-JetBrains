@@ -93,7 +93,10 @@ class EasyRiderStage1(StageTest):
         convoy = conn.cursor()
 
         #  checking if table exists
-        lines = convoy.execute("SELECT count(name) FROM sqlite_master WHERE type='table' AND name='convoy';").fetchall()
+        try:
+            lines = convoy.execute("SELECT count(name) FROM sqlite_master WHERE type='table' AND name='convoy';").fetchall()
+        except sqlite3.DatabaseError as er:
+            return f"Attempting to read from the {file_name} database generates the error: {er}."
         if lines[0][0] == 0:
             return f"There is no table named 'convoy' in database {file_name}"
 
