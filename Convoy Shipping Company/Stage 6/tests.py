@@ -160,7 +160,7 @@ class EasyRiderStage1(StageTest):
             return f"There is no PRIMARY KEY parameter on column 'vehicle_id' in {file_name}."
 
         #  checking if columns have an attribute NOT NULL
-        not_null = (('1000', 'Null', 'Null', 'Null', 'Null'), ('1001', 'Null', 'Null', 'Null', 'Null'), ('1002', 'Null', 'Null', 'Null', 'Null'), ('1003', 'Null', 'Null', 'Null', 'Null'))
+        not_null = (('1000', 'Null', '1', '1', '1'), ('1001', '1', 'Null', '1', '1'), ('1002', '1', '1', 'Null', '1'), ('1003', '1', '1', '1', 'Null'))
         for values in not_null:
             try:
                 convoy.execute(f"INSERT INTO convoy(vehicle_id,engine_capacity,fuel_consumption,maximum_load, score) "
@@ -189,6 +189,8 @@ class EasyRiderStage1(StageTest):
                 return f"There is 'score' key in JSON file"
         except KeyError:
             pass
+        except IndexError:
+            return f"There are no items in the JSON dictionary."
         except TypeError:
             return f"There is different data type in JSON file than dictionary."
 
