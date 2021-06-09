@@ -1,125 +1,180 @@
+from numpy import sign
 import pandas as pd
+import os.path
 import re
 import sqlite3
 import json
-#  from lxml import etree
 
+def create_df(excel_filename, csv_filename):
+    df = pd.read_excel(excel_filename, sheet_name="Vehicles", dtype=str)
+    df.to_csv(csv_filename, index=None, header=True)
+    rows = df.shape[0]
+    if rows == 1:
+        print(f"1 line was added to {csv_filename}")
+    else:
+        print(f"{rows} lines were added to {csv_filename}")
+    return df
 
-def xlsx_to_csv(name):
-    read_file = pd.read_excel(f"{name}.xlsx", sheet_name="Vehicles", dtype=str)
-    read_file.to_csv(f'{name}.csv', index=None, header=True)
-    with open(f'{name}.csv', 'r', encoding='utf-8') as file:
-        line = file.readlines()
-    return f"{len(line) - 1} {'line was' if len(line) - 1 == 1 else 'lines were'} added to {name}.csv"
+def correct_df(df, correct_filename):
+    count = 0
+    for row in df.values:
+        for i in range(len(row)):
+            try:
+                row[i] = pd.to_numeric(row[i], downcast='signed')
+            except Exception:
+                row[i] = re.sub(r".*?(\d*).*?", r"\1", row[i])
+                row[i] = pd.to_numeric(row[i], downcast='signed')
+                count += 1
 
+    df.to_csv(correct_filename, index=None, header=True)
+    if count == 1:
+        print(f"1 cell was corrected in {correct_filename}")
+    if count > 1:
+        print(f"{count} cells were corrected in {correct_filename}")
 
-def xlsx_to_csv_checked(name):
-    out, count = [], 0
-    with open(f'{name}.csv', 'r', encoding='utf-8') as file:
-        out.append(file.readline())
-        for line in file:
-            tmp_line = [re.search(r'[\d]+', cell)[0] for cell in line.strip().split(",")]
-            count += sum(1 if line.strip().split(",")[z] != tmp_line[z] else 0 for z in range(len(tmp_line)))
-            out.append(tmp_line)
-    with open(f'{name}[CHECKED].csv', 'w', encoding='utf-8') as file:
-        file.writelines(out[0])
-        for line in out[1:]:
-            file.write(",".join(line) + "\n")
-    return f"{count} {'cell was' if count == 1 else 'cells were'} corrected in {name}[CHECKED].csv"
+def create_db(df, db_filename):
+    if os.path.exists(db_filename):
+        os.remove(db_filename)
 
+    con = sqlite3.connect(db_filename)
+    cur = con.cursor()
 
-def csv_to_s3db(name):
-    name = name.strip("[CHECKED]")
-    with open(f'{name.strip()}[CHECKED].csv', 'r', encoding='utf-8') as file:
-        db_convoy = file.readline().strip().split(",")
-        conn = sqlite3.connect(f'{name}.s3db')
-        convoy = conn.cursor()
+    dbdef = []
+    dbdef.append("vehicle_id INTEGER PRIMARY KEY")
+    for header in df.columns:
+        if header == "vehicle_id":
+            continue
+        dbdef.append(header + " INTEGER NOT NULL")
+    dbdef.append("score INTEGET NOT NULL")
 
-        lines = convoy.execute("SELECT count(name) FROM sqlite_master WHERE type='table' AND name='convoy';").fetchall()
-        if lines[0][0] != 0:
-            convoy.execute(f"DROP TABLE convoy;")
-            conn.commit()
+    dbdef = ", ".join(dbdef)
+    cur.execute(f"CREATE TABLE convoy(" + dbdef + ");")
 
-        convoy.execute(f"CREATE TABLE convoy({db_convoy[0]} "
-                       f"INTEGER PRiMARY KEY, {db_convoy[1]} "
-                       f"INTEGER NOT NULL, {db_convoy[2]} "
-                       f"INTEGER NOT NULL, {db_convoy[3]} "
-                       f"INTEGER NOT NULL, "
-                       f"score INTEGER NOT NULL);")
-        conn.commit()
-        for line in file:
-            line = line.strip().split(",")
-            distance = 450 / 100
-            score1 = (distance * int(line[2])) / int(line[1])
-            s1 = 0 if score1 > 2 else 1 if score1 >= 1 else 2
-            s2 = 2 if distance * int(line[2]) <= 230 else 1
-            s3 = 2 if int(line[3]) >= 20 else 0
-            score = s1 + s2 + s3
-            convoy.execute(f"INSERT INTO convoy({db_convoy[0]},{db_convoy[1]},{db_convoy[2]},{db_convoy[3]},score) VALUES({line[0]},{line[1]},{line[2]},{line[3]},{score})")
-        conn.commit()
-        base = convoy.execute("SELECT COUNT(*) FROM convoy")
-        db_len = base.fetchone()[0]
-        conn.close()
+    count = 0
+    for row in df.values:
+        vehicle_id, engine_capacity, fuel_consumption, maximum_load = row
+        score = calc_score(engine_capacity, fuel_consumption, maximum_load)
+        row = (vehicle_id, engine_capacity, fuel_consumption, maximum_load, score)
+        sql = f'INSERT INTO convoy values{row}'
+        cur.execute(sql)
+        con.commit()
+        count += 1
 
-        return f"{db_len} {'record was' if db_len == 1 else 'records were'} inserted into {name}.s3db"
+    if count == 1:
+        print(f"1 record was inserted into {db_filename}")
+    if count > 1:
+        print(f"{count} records were inserted into {db_filename}")
 
+    return con, cur
 
-def s3db_to_json(name):
-    name = name.strip("[CHECKED]")
-    table_name = "convoy"
-    columns = ['vehicle_id', 'engine_capacity', 'fuel_consumption', 'maximum_load']
-    json_data = {f"{table_name}": []}
-    conn = sqlite3.connect(f'{name.strip("[CHECKED]")}.s3db')
-    convoy = conn.cursor()
-    convoy.execute(f"SELECT * FROM {table_name}")
-    convoy = convoy.fetchall()
-    conn.close()
-    for record in convoy:
-        tmp = {}
-        if record[4] > 3:
-            for x in range(4):
-                tmp[columns[x]] = record[x]
-            json_data[table_name].append(tmp)
-#    json_data = json.dumps(json_data, indent=4)
-#    print(json_data)
-    with open(f"{name}.json", "w") as json_f:
-        json.dump(json_data, json_f)
-    return f"{len(json_data[table_name])} {'vehicle was' if len(convoy) == 1 else 'vehicles were'} saved into {name}.json"
+def get_colnames(conn):
+    cursor = con.execute('select * from convoy')
+    colnames = [description[0] for description in cursor.description]
+    return colnames
 
+def create_json(con, cur, json_filename):
+    colnames = get_colnames(con)
+    cur.execute("SELECT * FROM convoy")
+    rows = cur.fetchall()
+    row_includelist = []
+    row_excludelist = []
+    for row in rows:
+        row_dict = dict(zip(colnames, row))
+        score = row_dict.pop("score")
+        if score > 3:
+            row_includelist.append(row_dict)
+        else:
+            row_excludelist.append(row_dict)
+    convoy_dict = {"convoy": row_includelist}
+    convoy_json = json.dumps(convoy_dict)
 
-def s3db_to_xml(name):
-    table_name = "convoy"
-    tags = ['vehicle_id', 'engine_capacity', 'fuel_consumption', 'maximum_load']
-    xml_data = [f"<{table_name}>\n"]
-    #  xml_data.append(f"<{table_name}>\n")
-    conn = sqlite3.connect(f'{name.strip("[CHECKED]")}.s3db')
-    convoy = conn.cursor()
-    convoy.execute(f"SELECT * FROM {table_name}")
-    convoy = convoy.fetchall()
-    conn.close()
-    for record in convoy:
-        if record[4] <= 3:
-            xml_data.append(f"    <vehicle>\n")
-            for x in range(4):
-                xml_data.append(f"        <{tags[x]}>{record[x]}</{tags[x]}>\n")
-            xml_data.append(f"    </vehicle>\n")
-    xml_data.append(f"</{table_name}>\n")
-    with open(f"{name}.xml", "w") as file:
-        file.writelines(xml_data)
-#    root = etree.fromstring("".join(xml_data))
-#    etree.dump(root)
-    return f"{int(len(xml_data)/6)} {'vehicle was' if int(len(xml_data)/6) == 1 else 'vehicles were'} saved into {name}.xml"
+    with open(json_filename, 'w') as file:
+	    file.write(convoy_json)
 
+    if len(row_includelist) == 1:
+        print(f"1 vehicle was saved into {json_filename}")
+    if len(row_includelist) > 1:
+        print(f"{len(row_includelist)} vehicles were saved into {json_filename}")
+
+    convoy_dict = {"convoy": row_excludelist}
+    convoy_json = json.dumps(convoy_dict)
+    return convoy_json
+
+def create_xml(convoy_json, xml_filename):
+    json_data = json.loads(convoy_json)
+    root = json_data["convoy"]
+    xml = "<convoy>"
+    count = 0
+    for child in root:
+        xml += "<vehicle>"
+        for key, value in child.items():
+            xml += f"<{key}>{value}</{key}>"
+        xml += "</vehicle>"
+        count += 1
+    xml += "</convoy>"
+
+    with open(xml_filename, 'w') as file:
+	    file.write(xml)
+
+    if count == 1:
+        print(f"1 vehicle was saved into {xml_filename}")
+    else:
+        print(f"{count} vehicles were saved into {xml_filename}")
+
+def calc_score(engine_capacity, fuel_consumption, maximum_load):
+# 1) Number of pitstops. If there are two or more gas stops on the way, the object has 0 points. One stop at the filling station means 1 point. No stops — 2 scoring points.
+# 2) Fuel consumed over the entire trip. If a truck burned 230 liters or less, 2 points are given. If more — 1 point.
+# 3) Truck capacity. If the capacity is 20 tones or more, it gets 2 points. If less — 0 points.
+    fuel_per_km = fuel_consumption / 100
+    fuel_per_trip = 450 * fuel_per_km
+    pitstop = fuel_per_trip // engine_capacity
+
+    score = 0
+    if pitstop == 0:            # 1)
+        score += 2
+    elif pitstop == 1:
+        score += 1
+
+    if fuel_per_trip <= 230:    # 2)
+        score += 2
+    else:
+        score += 1
+
+    if maximum_load >= 20:      # 3)
+        score += 2
+
+    return score
 
 print("Input file name")
-f_name = input().split(".")
-if f_name[1] in ["xlsx"]:
-    print(xlsx_to_csv(f_name[0]))
-if f_name[1] in ["csv", "xlsx"] and not ".".join(f_name).endswith("[CHECKED].csv"):
-    print(xlsx_to_csv_checked(f_name[0]))
-if f_name[1] in ["csv", "xlsx"] or ".".join(f_name).endswith("[CHECKED].csv"):
-    print(csv_to_s3db(f_name[0]))
-f_name[0] = f_name[0].strip("[CHECKED]")
-if f_name[1] in ["csv", "xlsx", "s3db"]:
-    print(s3db_to_json(f_name[0]))
-    print(s3db_to_xml(f_name[0]))
+input_filename = input()
+# input_filename = "convoy.xlsx"
+filename, ext = os.path.splitext(input_filename)
+if ext == ".xlsx":
+    csv_filename = filename + ".csv"
+    df = create_df(input_filename, csv_filename)
+
+if ext == ".csv":
+    df = pd.read_csv(input_filename)
+
+if ext == ".xlsx" or ext == ".csv":
+    if not filename.endswith("[CHECKED]"):
+        correct_filename = filename + "[CHECKED].csv"
+        correct_df(df, correct_filename)
+    else:
+        correct_filename = input_filename
+
+    db_filename = correct_filename[:len(correct_filename) - len("[CHECKED].csv")] + ".s3db"
+    con, cur = create_db(df, db_filename)
+
+if ext == ".s3db":
+    db_filename = input_filename
+    con = sqlite3.connect(db_filename)
+    cur = con.cursor()
+
+filename, ext = os.path.splitext(db_filename)
+json_filename = filename + ".json"
+convoy_json = create_json(con, cur, json_filename)
+con.close()
+
+xml_filename = filename + ".xml"
+create_xml(convoy_json, xml_filename)

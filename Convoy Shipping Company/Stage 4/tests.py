@@ -97,13 +97,16 @@ class EasyRiderStage1(StageTest):
     @staticmethod
     def quality_of_data_csv(file_name, number):
         count = 0
-        with open(file_name, 'r', encoding='utf-8') as file:
-            for line in file:
-                if not line.startswith("vehicle_id"):
-                    for item in line.split(","):
-                        if not re.match(r"^[\d]+$", item):
-                            return f"In line '{line.strip()}': '{item}' is not a number. Check {file_name}"
-                        count += int(item)
+        try:
+            with open(file_name, 'r', encoding='utf-8') as file:
+                for line in file:
+                    if not line.startswith("vehicle_id"):
+                        for item in line.split(","):
+                            if not re.match(r"^[\d]+$", item):
+                                return f"In line '{line.strip()}': '{item}' is not a number. Check {file_name}"
+                            count += int(item)
+        except UnicodeDecodeError:
+            return f"The CSV file is not UTF-8 encoded."
         if count != number:
             return f"Check data in {file_name}. Sum of integer should be {number}, found {count}"
         return False
