@@ -4,6 +4,9 @@ from os import path
 import shutil
 import re
 import os
+import hashlib
+import requests
+import zipfile
 
 
 class EasyRiderStage1(StageTest):
@@ -11,19 +14,13 @@ class EasyRiderStage1(StageTest):
     files_to_check = ["data_one_xlsx.xlsx", "data_big_xlsx.xlsx", "data_one_csv.csv", "data_big_csv.csv"]
 
     def generate(self) -> List[TestCase]:
-#        self.checking_files()
+        check_test_files("https://stepik.org/media/attachments/lesson/461165/stage2_files.zip")  #
         return [
                 TestCase(stdin=[self.prepare_file], attach=("data_one_xlsx.xlsx", 1, "line", 4, "cell", 488)),
                 TestCase(stdin=[self.prepare_file], attach=("data_big_xlsx.xlsx", 10, "line", 12, "cell", 5961)),
                 TestCase(stdin=[self.prepare_file], attach=("data_one_csv.csv", 1, None, 4, "cell", 488)),
                 TestCase(stdin=[self.prepare_file], attach=("data_big_csv.csv", 12, None, 12, "cell", 5961)),
         ]
-
-#    def checking_files(self):
-#        for file in self.files_to_check:
-#            file = os.path.join("test", file)
-#            if all([not file.endswith(".s3db"), not path.exists(file)]):
-#                raise WrongAnswer(f"There is no {file} file in test repository. Please restore the file or restart the lesson.")
 
     def after_all_tests(self):
         for file in set(self.files_to_delete):
@@ -127,6 +124,44 @@ class EasyRiderStage1(StageTest):
 
             reply.pop(0)
         return CheckResult.correct()
+
+
+def extract_files(file_url):
+    r = requests.get(file_url, allow_redirects=True)  # download file to local repository
+    with open("tmp_test.zip", 'wb') as tmp_file:
+        tmp_file.write(r.content)
+
+    with zipfile.ZipFile("tmp_test.zip", 'r') as zip_object:  # unpack zip
+        list_of_files = zip_object.namelist()
+        for org_file in list_of_files:
+            zip_object.extract(org_file)
+
+    if path.exists("tmp_test.zip"):  # delete local zip file
+        os.remove("tmp_test.zip")
+
+
+def check_test_files(file_url):  # as input http address of the zip file on Stpeik
+    direct = "test"
+    md5_sum = {'data_big_csv.csv': 'ce035f34f6591e089c3bfc4d0cddab03',
+               'data_big_xlsx.xlsx': '12ad1512574f861725dbc82286237697',
+               'data_one_csv.csv': '8e3828c13e2c3dd380d6fa2eb22337a1',
+               'data_one_xlsx.xlsx': '6b8c741538067a24e7c6bfa39c8b3d94'}
+
+    for file in md5_sum:
+        try:
+            with open(os.path.join(direct, file), "rb") as local_file:
+                content = local_file.read()  # reed content and calculate hash value
+                md5_hash = hashlib.md5()
+                md5_hash.update(content)
+                digest = md5_hash.hexdigest()
+
+                if md5_sum[file] != digest:  # if wrong hash value restore all files
+                    extract_files(file_url)
+                    return
+
+        except FileNotFoundError:  # if there is no file restore all files
+            extract_files(file_url)
+            return
 
 
 if __name__ == '__main__':

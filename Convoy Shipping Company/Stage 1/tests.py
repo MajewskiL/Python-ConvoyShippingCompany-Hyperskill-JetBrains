@@ -4,6 +4,9 @@ import re
 from os import path
 import shutil
 import os
+import hashlib
+import requests
+import zipfile
 
 
 class EasyRiderStage1(StageTest):
@@ -11,18 +14,12 @@ class EasyRiderStage1(StageTest):
     files_to_check = ["data_one.xlsx", "data.xlsx", "data_big.xlsx"]
 
     def generate(self) -> List[TestCase]:
-#        self.checking_files()
+        check_test_files("https://stepik.org/media/attachments/lesson/461165/stage1_files.zip")
         return [
                 TestCase(stdin=[self.prepare_file], attach=("data_one.xlsx", 1, "line")),
                 TestCase(stdin=[self.prepare_file], attach=("data.xlsx", 4, "line")),
                 TestCase(stdin=[self.prepare_file], attach=("data_big.xlsx", 10, "line")),
         ]
-
-#    def checking_files(self):
-#        for file in self.files_to_check:
-#            file = os.path.join("test", file)
-#            if all([not file.endswith(".s3db"), not path.exists(file)]):
-#                raise WrongAnswer(f"There is no {file} file in test repository. Please restore the file or restart the lesson.")
 
     def after_all_tests(self):
         for file in set(self.files_to_delete):
@@ -83,6 +80,43 @@ class EasyRiderStage1(StageTest):
             return CheckResult.wrong(test)
 
         return CheckResult.correct()
+
+
+def extract_files(file_url):
+    r = requests.get(file_url, allow_redirects=True)  # download file to local repository
+    with open("tmp_test.zip", 'wb') as tmp_file:
+        tmp_file.write(r.content)
+
+    with zipfile.ZipFile("tmp_test.zip", 'r') as zip_object:  # unpack zip
+        list_of_files = zip_object.namelist()
+        for org_file in list_of_files:
+            zip_object.extract(org_file)
+
+    if path.exists("tmp_test.zip"):  # delete local zip file
+        os.remove("tmp_test.zip")
+
+
+def check_test_files(file_url):  # as input http address of the zip file on Stpeik
+    direct = "test"
+    md5_sum = {'data.xlsx': '409e3a6a74137dd72d268fbd100c0b20',
+               'data_big.xlsx': '12ad1512574f861725dbc82286237697',
+               'data_one.xlsx': '6b8c741538067a24e7c6bfa39c8b3d94'}
+
+    for file in md5_sum:
+        try:
+            with open(os.path.join(direct, file), "rb") as local_file:
+                content = local_file.read()  # reed content and calculate hash value
+                md5_hash = hashlib.md5()
+                md5_hash.update(content)
+                digest = md5_hash.hexdigest()
+
+                if md5_sum[file] != digest:  # if wrong hash value restore all files
+                    extract_files(file_url)
+                    return
+
+        except FileNotFoundError:  # if there is no file restore all files
+            extract_files(file_url)
+            return
 
 
 if __name__ == '__main__':
