@@ -41,7 +41,6 @@ class EasyRiderStage1(StageTest):
                 except PermissionError:
                     raise WrongAnswer(f"Can't delete the database file: {name_del}. Looks like database connection wasn't closed or database is open in external program.")
 
-
     def generate(self) -> List[TestCase]:
         check_test_files("https://stepik.org/media/attachments/lesson/461165/stage5_files.zip")
         self.remove_s3db_files()
