@@ -43,9 +43,9 @@ class EasyRiderStage1(StageTest):
     @staticmethod
     def wrong_number_of_lines_csv(file_name, nr):
         with open(file_name, 'r', encoding='utf-8') as file_csv:
-            csv_len = len([x for x in file_csv]) - 1
-            if csv_len != nr:
-                return f"Wrong number of lines in file {file_name}. Expected {nr}, found {csv_len}\ncheck if you have imported headers and all data is present;\ncheck if you have imported the appropriate sheet.)"
+            csv_len = len([x for x in file_csv])
+            if csv_len != nr + 1:
+                return f"Wrong number of lines in file {file_name}. Expected {nr + 1}, found {csv_len}\ncheck if you have imported headers and all data is present;\ncheck if you have imported the appropriate sheet.)"
         return False
 
     @staticmethod
